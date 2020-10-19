@@ -1,9 +1,10 @@
-#!/bin/bash
+yum check-update > /dev/null
 
-availableUpdates=$(sudo yum -q check-update | wc -l)
+UPDATES_COUNT=$(yum check-update --quiet | grep -v "^$" | wc -l)
 
-if [ $availableUpdates -gt 0 ]; then
-    sudo yum upgrade -y;
+if [[ $UPDATES_COUNT -gt 0 ]]; then
+   echo "${UPDATES_COUNT} Updates available, installing"
+   yum -y upgrade
 else
-    echo $availableUpdates "updates available"
+   echo "${UPDATES_COUNT} updates available"
 fi
