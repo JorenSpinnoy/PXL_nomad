@@ -8,11 +8,11 @@ server {
 END
 
 cat << END >/etc/consul.d/consul.hcl
-bind_addr = "server"
+bind_addr = "{{ GetInterfaceIP \"eth0\" }}"
 
 data_dir = "/etc/consul.d"
 
-client_addr= "0.0.0.0"
+client_addr = "0.0.0.0"
 
 ui = true
 

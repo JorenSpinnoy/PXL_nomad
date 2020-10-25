@@ -2,15 +2,17 @@ cat << END >/etc/nomad.d/nomad.hcl
 data_dir = "/etc/nomad.d"
 
 client {
-    enabled = true
-    servers = ["server:4647"]
+  enabled = true
+  servers = ["server:4647"]
 }
 END
 
 cat << END >/etc/consul.d/consul.hcl
+bind_addr = "{{ GetInterfaceIP \"eth0\" }}"
+
 data_dir = "/etc/consul.d"
 
-client_addr= "0.0.0.0"
+client_addr = "0.0.0.0"
 
 ui = true
 
