@@ -111,7 +111,7 @@ systemctl restart nomad
 systemctl restart consul
 ```
 #### Hyper-V als DHCP & DNS
-Voor `servers = ["server:4647"]` en `retry_join = ["server"]` geef ik geen ip-adres in maar alleen de hostname van de server. Dit gaat werken omdat alle VM's binnen de Default Switch zitten van Hyper-V en ieder een IP-adres krijgen van zijn DHCP-server, ook zorgt Hyper-V voor name resolution met de DNS `mshome.net`.
+Voor `servers = ["server:4647"]` en `retry_join = ["server"]` geef ik geen ip-adres in maar alleen de hostname van de server. Dit gaat werken omdat alle VM's binnen de Default Switch zitten van Hyper-V en elke VM een IP-adres krijgt van Hyper-V DHCP-server, ook zorgt Hyper-V voor name resolution met de DNS `mshome.net`.
 
 **Groot voordeel hiervan is dat we nergens IP's moeten definiëren in config-files en maakt alles een heel stuk overzichtelijker!** 
 
