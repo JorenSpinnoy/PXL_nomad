@@ -1,7 +1,7 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 VAGRANTFILE_API_VERSION = "2"
-CLIENTS = "3"
+CLIENTS = 3
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
@@ -20,5 +20,4 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     client.vm.provision "shell", path: "scripts/client.sh"
   end
 end
-  
 end
