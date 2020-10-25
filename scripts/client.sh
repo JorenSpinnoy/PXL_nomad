@@ -1,0 +1,24 @@
+cat << END >/etc/nomad.d/nomad.hcl
+data_dir = "/etc/nomad.d"
+
+client {
+    enabled = true
+    servers = ["server:4647"]
+}
+END
+
+cat << END >/etc/consul.d/consul.hcl
+data_dir = "/etc/consul.d"
+
+client_addr= "0.0.0.0"
+
+ui = true
+
+server = false
+
+retry_join = ["server"]
+END
+
+systemctl daemon-reload
+systemctl restart nomad
+systemctl restart consul
