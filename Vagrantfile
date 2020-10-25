@@ -15,9 +15,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   end
   
   (1..CLIENTS).each do |i|
-  config.vm.define "client#{i}" do |client|
-    client.vm.hostname = "client#{i}"
-    client.vm.provision "shell", path: "scripts/client.sh"
+    config.vm.define "client#{i}" do |client|
+      client.vm.hostname = "client#{i}"
+      client.vm.provision "shell", path: "scripts/client.sh"
+    end
   end
-end
 end
