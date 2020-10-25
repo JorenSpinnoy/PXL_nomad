@@ -1,5 +1,9 @@
 # Linux - Opdracht 1 Documentatie
 
+### Gebruikte technologie
+* Vagrant
+* Hyper-V
+
 ### Starten van de VM's
 
     $ vagrant up --provision
