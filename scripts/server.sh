@@ -1,3 +1,4 @@
+# Overwrites the default systemd config file for nomad
 cat << END >/etc/nomad.d/nomad.hcl
 data_dir = "/etc/nomad.d/data"
 
@@ -7,6 +8,7 @@ server {
 }
 END
 
+# Overwrites the default systemd config file for consul
 cat << END >/etc/consul.d/consul.hcl
 bind_addr = "{{ GetInterfaceIP \"eth0\" }}"
 

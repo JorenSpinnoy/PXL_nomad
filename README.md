@@ -1,47 +1,236 @@
-# Nomad consul
+# Linux - Opdracht 1 Documentatie
 
-The aim of this project is to provide a development environment based on [consul](https://www.consul.io) and [nomad](https://www.nomadproject.io) to manage container based microservices.
+### Starten van de VM's
 
-The following steps should make that clear;
+    $ vagrant up --provision
 
-bring up the environment by using [vagrant](https://www.vagrantup.com) which will create centos 7 virtualbox machine or lxc container.
+Dit bovenste commando start 1 server en x aantal clients op.
 
-The proved working vagrant providers used on an [ArchLinux](https://www.archlinux.org/) system are
-* [vagrant-lxc](https://github.com/fgrehm/vagrant-lxc)
-* [vagrant-libvirt](https://github.com/vagrant-libvirt/)
-* [virtualbox](https://www.virtualbox.org/)
+Door het uit te voeren van beide onderstaande commandos in twee verschillende terminal-vensters krijgen we een web user interface op onze host. De sessie verloopt bij het sluiten van deze SSH-connectie. De poort 8500 is voor de Consul-server en 4646 is voor de nomad-server. Bij Hyper-V is dit de enigste manier want dit is een limitatie van het netwerkconfiguratie van Hyper-V zoals vermeld hier: https://www.vagrantup.com/docs/providers/hyperv/limitations .
+
+    $ vagrant ssh server -- -L 8500:localhost:8500
+    $ vagrant ssh server -- -L 4646:localhost:4646
+
+![Consul](https://i.imgur.com/r6ID8pQ.png)![enter image description here](https://i.imgur.com/Vb404pO.png)
+
+### Uitleg configuratie
+
+Er worden 3 clients en 1 server aangemaakt met onderstaande vagrantfile. Deze draaien op centos/7. Op alle VM's wordt `update.sh` en `install.sh` uitgevoerd.  `update.sh` checkt of de VM up to date is en update vervolgens als dat nodig is. `install.sh` installeert nomad, consul en docker op alle VM's en start deze op als systemd-service. 
+
+De server krijgt de hostname: `server` en die clients krijgen elk de hostname `client1`, `client2`, `client3`... Zo veel clients als er nodig zijn. Voor de server wordt vervolgens een script `server.sh` uitgevoerd en voor de clients `client.sh` voor de configuratie nomad en consul.
+
+#### Vagrantfile
+```
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+VAGRANTFILE_API_VERSION = "2"
+CLIENTS = 3
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+  config.vm.box = "centos/7"
+  config.vm.provision "shell", path: "scripts/update.sh"
+  config.vm.provision "shell", path: "scripts/install.sh"
+  
+  config.vm.define "server" do |server|
+	server.vm.hostname = "server"
+	server.vm.provision "shell", path: "scripts/server.sh"
+  end
+  
+  (1..CLIENTS).each do |i|
+    config.vm.define "client#{i}" do |client|
+      client.vm.hostname = "client#{i}"
+      client.vm.provision "shell", path: "scripts/client.sh"
+    end
+  end
+end
+```
+#### Server Configuratie
+Onderstaand is het script `server.sh`. We overschrijven de default-configs voor nomad.hcl en consul.hcl met onderstaande configs die geplaatst worden in `/etc/nomad.d/nomad.hcl` en `/etc/nomad.d/consul.hcl`. We geven aan in beide configs dat dit de server gaat zijn. 
+
+`bind_addr = "{{ GetInterfaceIP \"eth0\" }}"` neemt het IP dat Hyper-V heeft toegekent aan de interface `eth0` en koppelt dit aan de consul-server. Vervolgens restarten we beide services om de config-files opnieuw in te laden.
 
 ```bash
-    $ vagrant up --provider lxc
-    OR
-    $ vagrant up --provider libvirt
-    OR
-    $ vagrant up --provider virtualbox
+# Overwrites the default systemd config file for nomad
+cat << END >/etc/nomad.d/nomad.hcl
+data_dir = "/etc/nomad.d/data"
+
+server {
+  enabled          = true
+  bootstrap_expect = 1
+}
+END
+
+# Overwrites the default systemd config file for consul
+cat << END >/etc/consul.d/consul.hcl
+bind_addr = "{{ GetInterfaceIP \"eth0\" }}"
+
+data_dir = "/etc/consul.d/data"
+
+client_addr = "0.0.0.0"
+
+ui = true
+
+server = true
+
+bootstrap_expect = 1
+END
+
+systemctl daemon-reload
+systemctl restart nomad
+systemctl restart consul
 ```
 
-Once it is finished, you should be able to connect to the vagrant environment through SSH and interact with Nomad:
+#### Client Configuratie
+Onderstaand is het script `client.sh`.  We overschrijven de default-configs voor nomad.hcl en consul.hcl met onderstaande configs die geplaatst worden in `/etc/nomad.d/nomad.hcl` en `/etc/nomad.d/consul.hcl`. Dit is de configuratie voor de clients. Vervolgens restarten we beide services om de config-files opnieuw in te laden.
 
 ```bash
-    $ vagrant ssh
-    [vagrant@nomad ~]$
+# Overwrites the default systemd config file for nomad
+cat << END >/etc/nomad.d/nomad.hcl
+data_dir = "/etc/nomad.d/data"
+
+client {
+  enabled = true
+  servers = ["server:4647"]
+}
+END
+
+# Overwrites the default systemd config file for consul
+cat << END >/etc/consul.d/consul.hcl
+bind_addr = "{{ GetInterfaceIP \"eth0\" }}"
+
+data_dir = "/etc/consul.d/data"
+
+client_addr = "0.0.0.0"
+
+retry_join = ["server"]
+END
+
+systemctl daemon-reload
+systemctl restart nomad
+systemctl restart consul
+```
+#### Hyper-V als DHCP & DNS
+Voor `servers = ["server:4647"]` en `retry_join = ["server"]` geef ik geen ip-adres in maar alleen de hostname van de server. Dit gaat werken omdat alle VM's binnen de Default Switch zitten van Hyper-V en ieder een IP-adres krijgen van zijn DHCP-server, ook zorgt Hyper-V voor name resolution met de DNS `mshome.net`.
+
+**Groot voordeel hiervan is dat we nergens IP's moeten definiëren in config-files en maakt alles een heel stuk overzichtelijker!** 
+
+Ping van client1 naar server.
+![pingclient1](https://i.imgur.com/Ak2RBpj.png)
+Ping van server naar client1.
+![pingserver](https://i.imgur.com/hGC817M.png)
+#### Update-script
+Dit script kijkt of updates nodig zijn en installeert ze vervolgens.
+```bash
+yum check-update > /dev/null
+
+UPDATES_COUNT=$(yum check-update --quiet | grep -v "^$" | wc -l)
+
+if [[ $UPDATES_COUNT -gt 0 ]]; then
+   echo "${UPDATES_COUNT} Updates available, installing"
+   yum -y upgrade
+else
+   echo "${UPDATES_COUNT} updates available"
+fi
 ```
 
-# Linux - Opdracht 1 (deadline 26/10)
+#### Install-script
+Onderstaand script installeert Nomad, Consul en Docker en start deze op als systemd-services.
+```bash
+# Install Nomad
+yum install -y yum-utils
+yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+yum -y install nomad
+nomad --version
 
-Per 2 (overzicht), met behulp van de vagrant shell provisioner een nomad cluster opzetten door middel van de tijdens de les gebruikte technieken toe te passen.
+systemctl enable nomad
+systemctl start nomad
 
-Een productie waardige nomad cluster met consul als service discovery en docker als driver installeren, configureren en starten door gebruik te maken van de vagrant shell provisioner in een vagrant multi machine omgeving. 
+# Install Consul
+yum -y install consul
+consul --version
 
-In de vagrant file worden 3 vm's aangemaakt waarvan eentje zal dienen als nomad server en de overige 2 als nomad agent. Op de 3 nodes moet consul worden geinstalleerd en geconfigureerd als cluster waartegen de nomad server communiceert.
+systemctl enable consul
+systemctl start consul
 
-De nomad server consul configuratie mag geconfigureerd worden zodat de nomad agents automatisch joinen.
+# Install Docker
+yum install -y yum-utils
+yum-config-manager \
+	--add-repo \
+	https://download.docker.com/linux/centos/docker-ce.repo
 
-Nomad, consul en docker dienen te worden opgezet met systemd (de voorziene yum repository van HashiCorp mag gebruikt worden!)
+yum install -y docker-ce docker-ce-cli containerd.io
 
-Het commando vagrant up --provision is het enige commando dat gebruikt zal worden om jullie nomad setup op te brengen waarna er getracht zal worden om een simpele webserver job definitie op jouw cluster zal worden uitgetest.
+systemctl enable docker
+systemctl start docker
+```
 
-Het eindresultaat dient via git te worden gepushed op de https://github.com/visibilityspots/PXL_nomad github repository op de branch van jouw team ten laatste op 26/10/2020 om 23:59:59.
+### Uitvoeren van een job
 
-Een README dient te worden opgesteld met een uitleg wat jullie gedaan hebben en waarom samen met een bron vermelding.
+Het uitvoeren van een job gaat op twee manieren. Ofwel met het commando `$ nomad job run job.nomad` ofwel met de GUI die we hebben opgezet op `http://localhost:4646` op de host-machine.
 
-De quotering zal gebeuren enerzijds op het functionele aspect van je cluster, anderzijds wordt er ook gekeken naar het gebruik van best practices van de gehanteerde oplossing alsook de samenwerking tussen jullie beiden en een individuele bevraging tijdens het evaluatie moment.
+#### Nomad job
+Onderstaande job zal een webserver opstarten met behulp van `driver = "docker"`.  We gebruiken `image="nginx"` om een nginx-webserver op te starten op poort 80.
+```bash
+job "webserver" {
+  datacenters = ["dc1"]
+  type = "service"
+  
+  group "webserver" {
+    count = 3
+  
+    task "webserver" {
+      driver = "docker"
+      config {
+        image = "nginx"
+		force_pull = true
+		port_map = {
+		  webserver_web = 80
+		} 
+		logging {
+		  type = "journald"
+		  config {
+		    tag = "WEBSERVER"
+		 }
+		}	
+      }
+	  
+	  service {
+	    name = "webserver"
+	    port = "webserver_web"
+	  } 
+      resources {
+        network {
+          port "webserver_web" {
+            static = "80"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### Starten van de nomad-job
+Om een job te starten surf je naar `http://localhost:4646` op de host-machine en klik je vervolgens op `Run Job`. 
+![Nomad-job](https://i.imgur.com/01Z6N2a.png)
+
+In het volgende venster plak je de job die je wilt uitvoeren en klik je op `Plan`
+![nomadplan](https://i.imgur.com/3j5yZJE.png)
+
+Vervolgens klik je op `Run` en zal de task starten.
+![nomadrun](https://i.imgur.com/ZWIvs3t.png)
+
+De webserver zal op 3 clients gestart worden en dan kunnen we er naar surfen via het IP-adres van die client.
+![webserver](https://i.imgur.com/m37PSaI.png)
+Ik kan surfen naar het IP-adres van 1 van de clients en dit zal de website tonen. Dit werkt met Hyper-V omdat de host-machine ook een binnen de Default Switch zit van Hyper-V en daarbij ook een IP-adres krijgt.
+![enter image description here](https://i.imgur.com/6l14tie.png)
+
+
+
+### Gebruikte bronnen
+https://www.consul.io/docs/agent/options.html
+https://www.vagrantup.com/docs/providers/hyperv/limitations
+https://learn.hashicorp.com/tutorials/nomad/get-started-install
+https://learn.hashicorp.com/tutorials/nomad/production-deployment-guide-vm-with-consul
+https://learn.hashicorp.com/tutorials/nomad/get-started-jobs
