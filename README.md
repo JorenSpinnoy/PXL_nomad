@@ -6,7 +6,7 @@
 
 ### Starten van de VM's
 
-    $ vagrant up --provision
+    $ vagrant up --provision --provider hyperv
 
 Dit bovenste commando start 1 server en x aantal clients op.
 
