@@ -2,7 +2,7 @@
 
 ### Gebruikte technologie
 * Vagrant
-* Hyper-V
+* linuxcontainers (LXC)
 
 ### Starten van de VM's
 
