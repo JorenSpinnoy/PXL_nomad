@@ -1,0 +1,48 @@
+---
+- hosts: all
+  become: yes
+  tasks: 
+    - name: update packages
+      yum:
+        name: '*'
+        update_cache: true
+        state: 'latest'
+
+    - name: install yum-utils
+      yum: 
+        name: yum-utils
+        state: present
+
+    - name: add docker repo
+      get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+        mode: 0644
+
+    
+    - name: add docker repo
+      yum_repository: 
+        name: docker-ce
+        description: add docker-ce repo
+        baseurl: https://download.docker.com/linux/centos/docker-ce.repo
+
+    - name: install docker-ce
+      yum: 
+        name: docker-ce
+        state: present
+
+    - name: install docker-ce-cli
+      yum: 
+        name: docker-ce-cli
+        state: present
+
+    - name: install containerd.io
+      yum:
+        name: containerd.io
+        state: present
+
+    - name: enable docker
+        systemd: 
+          name: docker
+          state: started
+          enabled: yes
