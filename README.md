@@ -4,11 +4,20 @@
 * Vagrant
 * linuxcontainers (LXC)
 
+### Prerequisites
+Omdat we gebruik maken van LXC containers is het nodig een provider hiervoor te installeren zodat Vagrant kan communiceren met de containers.
+
+    $ vagrant plugin install vagrant-lxc
+
+We maken ook gebruik van de Ansible provider, dus is het nodig om Ansible te installeren.
+
+    $ apt install ansible
+
 ### Starten van de VM's
 
-    $ vagrant up --provision --provider hyperv
+    $ vagrant up --provision --provider=lxc
 
-Dit bovenste commando start 1 server en x aantal clients op.
+Dit bovenste commando start 1 server en 2 clients op.
 
 Door het uit te voeren van beide onderstaande commandos in twee verschillende terminal-vensters krijgen we een web user interface op onze host. De sessie verloopt bij het sluiten van deze SSH-connectie. De poort 8500 is voor de Consul-server en 4646 is voor de nomad-server. Bij Hyper-V is dit de enigste manier want dit is een limitatie van het netwerkconfiguratie van Hyper-V zoals vermeld hier: https://www.vagrantup.com/docs/providers/hyperv/limitations .
 
