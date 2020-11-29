@@ -1,9 +1,15 @@
 ---
-- name: Echo
-  hosts: all
-  connection: local
+- name: server preparation
+  hosts: servers
+  become: yes
+  roles:
+    - consul
+    - nomad
 
-  tasks:
-  - name: Print debug message
-    debug: 
-      msg: Hello friend!
+- name: client preparation
+  hosts: clients
+  become: yes
+  roles: 
+    - consul
+    - nomad
+    - docker
