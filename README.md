@@ -96,9 +96,9 @@ In het Playbook geven we gewoon de rollen mee die elke Inventory-groep nodig hee
 
 ```
 
-#### Roles
+### Roles
 
-### consul
+#### consul
 ```
 ---
 - name: update packages
@@ -141,7 +141,7 @@ In het Playbook geven we gewoon de rollen mee die elke Inventory-groep nodig hee
     enabled: yes
 ```
 
-### docker
+#### docker
 ```
 ---
 - name: update packages
@@ -183,7 +183,7 @@ In het Playbook geven we gewoon de rollen mee die elke Inventory-groep nodig hee
 
 ```
 
-### nomad
+#### nomad
 ```
 ---
 - name: update packages
@@ -226,11 +226,11 @@ In het Playbook geven we gewoon de rollen mee die elke Inventory-groep nodig hee
     enabled: yes
 ```
 
-#### Templates
+### Templates
 
 Deze templates worden met bovenstaande roles overgekopieerd naar de guests.
 
-### Client template
+#### Client template
 ```
 data_dir = "/etc/nomad.d/data"
 
@@ -240,7 +240,7 @@ client {
 }
 ```
 
-### Server template
+#### Server template
 ```
 data_dir = "/etc/nomad.d/data"
 
