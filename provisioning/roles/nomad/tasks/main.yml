@@ -14,11 +14,23 @@
   get_url:
     url: https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
     dest: /etc/yum.repos.d/hashicorp.rep
-    
+
 - name: install nomad
   yum: 
     name: nomad
     state: present
+
+- name: nomad server conf
+  template:
+    src: server.hcl.j2
+    dest: /etc/nomad.d/nomad.hcl
+  when: is_server|bool
+
+- name: nomad client conf
+  template:
+    src: client.hcl.j2
+    dest: /etc/nomad.d/nomad.hcl
+  when: not is_server|bool    
 
 - name: enable nomad
   systemd: 

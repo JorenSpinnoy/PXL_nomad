@@ -31,7 +31,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     ansible.playbook = "provisioning/playbook.yml"
     ansible.groups = { 
       "servers" => ["server"],
-      "clients" => ["client1", "client2"]
+      "clients" => ["client1", "client2"],
+      "servers:vars" => {"is_server" => true},
+      "clients:vars" => {"is_server" => false}
     }
   end
 end
