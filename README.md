@@ -13,169 +13,241 @@ We maken ook gebruik van de Ansible provider, dus is het nodig om Ansible te ins
 
     $ apt install ansible
 
+Om later een docker job te kunnen runnen met Nomad is het nodig om container nesting toe te passen. Hiervoor hebben we de lxc container image ([visibilityspots/centos-7.x-minimal](https://app.vagrantup.com/visibilityspots/boxes/centos-7.x-minimal)) moeten aanpassen omdat dit standaard niet toegelaten is. Voeg in <code>~/.vagrant.d/boxes/visibilityspots-VAGRANTSLASH-centos-7.x-minimal/7.8.3/lxc/lxc-config</code>
+ de regel <code>lxc.apparmor.profile= unconfined</code> toe. Dit zorgt ervoor dat container nesting toegestaan is.
+
 ### Starten van de VM's
 
     $ vagrant up --provision --provider=lxc
 
 Dit bovenste commando start 1 server en 2 clients op.
 
-Door het uit te voeren van beide onderstaande commandos in twee verschillende terminal-vensters krijgen we een web user interface op onze host. De sessie verloopt bij het sluiten van deze SSH-connectie. De poort 8500 is voor de Consul-server en 4646 is voor de nomad-server. Bij Hyper-V is dit de enigste manier want dit is een limitatie van het netwerkconfiguratie van Hyper-V zoals vermeld hier: https://www.vagrantup.com/docs/providers/hyperv/limitations .
-
-    $ vagrant ssh server -- -L 8500:localhost:8500
-    $ vagrant ssh server -- -L 4646:localhost:4646
+De poort 8500 is voor de Consul-server en 4646 is voor de nomad-server. 
 
 ![Consul](https://i.imgur.com/r6ID8pQ.png)![enter image description here](https://i.imgur.com/Vb404pO.png)
 
 ### Uitleg configuratie
 
-Er worden 3 clients en 1 server aangemaakt met onderstaande vagrantfile. Deze draaien op centos/7. Op alle VM's wordt `update.sh` en `install.sh` uitgevoerd.  `update.sh` checkt of de VM up to date is en update vervolgens als dat nodig is. `install.sh` installeert nomad, consul en docker op alle VM's en start deze op als systemd-service. 
+Er worden 2 clients en 1 server aangemaakt met onderstaande vagrantfile. Deze draaien op centos-7.x-minimal. Alle containers krijgen een RAM limiet van 1024MB mee. Nadat alle containers zijn gedefinieerd roepen we de Ansible-provider op. We groeperen de containers en maken een Inventory aan, zowel 'Servers' als 'Clients'. We geven ook een variabele mee aan elke Inventory-groep, wat aanduidt of het een server is of niet. 
 
-De server krijgt de hostname: `server` en die clients krijgen elk de hostname `client1`, `client2`, `client3`... Zo veel clients als er nodig zijn. Voor de server wordt vervolgens een script `server.sh` uitgevoerd en voor de clients `client.sh` voor de configuratie nomad en consul.
+De server krijgt de hostname: `server` en die clients krijgen elk de hostname `client1`, `client2`,... Zo veel clients als er nodig zijn. 
 
 #### Vagrantfile
 ```
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 VAGRANTFILE_API_VERSION = "2"
-CLIENTS = 3
+CLIENTS = 2
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-
-  config.vm.box = "centos/7"
-  config.vm.provision "shell", path: "scripts/update.sh"
-  config.vm.provision "shell", path: "scripts/install.sh"
+  config.ssh.insert_key = false
+  config.vm.box = "visibilityspots/centos-7.x-minimal"
+#  config.vm.provision "shell", path: "scripts/update.sh"
+#  config.vm.provision "shell", path: "scripts/install.sh"
   
   config.vm.define "server" do |server|
 	server.vm.hostname = "server"
-	server.vm.provision "shell", path: "scripts/server.sh"
+        server.vm.provider :lxc do |lxc|
+          lxc.customize 'cgroup.memory.limit_in_bytes', '1024M'
+        end
+#	server.vm.provision "shell", path: "scripts/server.sh"
   end
   
   (1..CLIENTS).each do |i|
     config.vm.define "client#{i}" do |client|
       client.vm.hostname = "client#{i}"
-      client.vm.provision "shell", path: "scripts/client.sh"
+      client.vm.provider :lxc do |lxc|
+        lxc.customize 'cgroup.memory.limit_in_bytes', '1024M'
+      end
+#      client.vm.provision "shell", path: "scripts/client.sh"
     end
+  end
+
+  config.vm.provision "ansible" do |ansible|
+    ansible.playbook = "provisioning/playbook.yml"
+    ansible.groups = { 
+      "servers" => ["server"],
+      "clients" => ["client1", "client2"],
+      "servers:vars" => {"is_server" => true},
+      "clients:vars" => {"is_server" => false}
+    }
   end
 end
 ```
-#### Server Configuratie
-Onderstaand is het script `server.sh`. We overschrijven de default-configs voor nomad.hcl en consul.hcl met onderstaande configs die geplaatst worden in `/etc/nomad.d/nomad.hcl` en `/etc/nomad.d/consul.hcl`. We geven aan in beide configs dat dit de server gaat zijn. 
+#### Ansible playbook
 
-`bind_addr = "{{ GetInterfaceIP \"eth0\" }}"` neemt het IP dat Hyper-V heeft toegekent aan de interface `eth0` en koppelt dit aan de consul-server. Vervolgens restarten we beide services om de config-files opnieuw in te laden.
+In het Playbook geven we gewoon de rollen mee die elke Inventory-groep nodig heeft. Deze roepen dan bijhorende rollen op.
+```
+---
+- name: server preparation
+  hosts: servers
+  become: yes
+  roles:
+    - consul
+    - nomad
 
-```bash
-# Overwrites the default systemd config file for nomad
-cat << END >/etc/nomad.d/nomad.hcl
-data_dir = "/etc/nomad.d/data"
+- name: client preparation
+  hosts: clients
+  become: yes
+  roles: 
+    - consul
+    - nomad
+    - docker
 
-server {
-  enabled          = true
-  bootstrap_expect = 1
-}
-END
-
-# Overwrites the default systemd config file for consul
-cat << END >/etc/consul.d/consul.hcl
-bind_addr = "{{ GetInterfaceIP \"eth0\" }}"
-
-data_dir = "/etc/consul.d/data"
-
-client_addr = "0.0.0.0"
-
-ui = true
-
-server = true
-
-bootstrap_expect = 1
-END
-
-systemctl daemon-reload
-systemctl restart nomad
-systemctl restart consul
 ```
 
-#### Client Configuratie
-Onderstaand is het script `client.sh`.  We overschrijven de default-configs voor nomad.hcl en consul.hcl met onderstaande configs die geplaatst worden in `/etc/nomad.d/nomad.hcl` en `/etc/nomad.d/consul.hcl`. Dit is de configuratie voor de clients. Vervolgens restarten we beide services om de config-files opnieuw in te laden.
+#### Roles
 
-```bash
-# Overwrites the default systemd config file for nomad
-cat << END >/etc/nomad.d/nomad.hcl
+### consul
+```
+---
+- name: update packages
+  yum:
+    name: '*'
+    update_cache: true
+    state: 'latest'
+
+- name: install yum-utils
+  yum: 
+    name: yum-utils
+    state: present
+
+- name: add hashicorp repo
+  get_url:
+    url: https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+    dest: /etc/yum.repos.d/hashicorp.repo
+
+- name: install consul
+  yum: 
+    name: consul
+    state: present
+
+- name: consul server conf
+  template:
+    src: server.hcl.j2
+    dest: /etc/consul.d/consul.hcl
+  when: is_server|bool
+
+- name: consul client conf
+  template:
+    src: client.hcl.j2
+    dest: /etc/consul.d/consul.hcl
+  when: not is_server|bool   
+
+- name: enable consul
+  systemd:
+    name: consul
+    state: started
+    enabled: yes
+```
+
+### docker
+```
+---
+- name: update packages
+  yum:
+    name: '*'
+    update_cache: true
+    state: 'latest'
+
+- name: install yum-utils
+  yum: 
+    name: yum-utils
+    state: present
+
+- name: add docker repo
+  get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+
+- name: install docker-ce
+  yum: 
+    name: docker-ce
+    state: present
+
+- name: install docker-ce-cli
+  yum: 
+    name: docker-ce-cli
+    state: present
+
+- name: install containerd.io
+  yum:
+    name: containerd.io
+    state: present
+
+- name: enable docker
+  systemd: 
+    name: docker
+    state: started
+    enabled: yes
+
+```
+
+### nomad
+```
+---
+- name: update packages
+  yum:
+    name: '*'
+    update_cache: true
+    state: 'latest'
+
+- name: install yum-utils
+  yum: 
+    name: yum-utils
+    state: present
+
+- name: add hashicorp repo
+  get_url:
+    url: https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+    dest: /etc/yum.repos.d/hashicorp.rep
+
+- name: install nomad
+  yum: 
+    name: nomad
+    state: present
+
+- name: nomad server conf
+  template:
+    src: server.hcl.j2
+    dest: /etc/nomad.d/nomad.hcl
+  when: is_server|bool
+
+- name: nomad client conf
+  template:
+    src: client.hcl.j2
+    dest: /etc/nomad.d/nomad.hcl
+  when: not is_server|bool    
+
+- name: enable nomad
+  systemd: 
+    name: nomad
+    state: started
+    enabled: yes
+```
+
+#### Templates
+
+Deze templates worden met bovenstaande roles overgekopieerd naar de guests.
+
+### Client template
+```
 data_dir = "/etc/nomad.d/data"
 
 client {
   enabled = true
   servers = ["server:4647"]
 }
-END
-
-# Overwrites the default systemd config file for consul
-cat << END >/etc/consul.d/consul.hcl
-bind_addr = "{{ GetInterfaceIP \"eth0\" }}"
-
-data_dir = "/etc/consul.d/data"
-
-client_addr = "0.0.0.0"
-
-retry_join = ["server"]
-END
-
-systemctl daemon-reload
-systemctl restart nomad
-systemctl restart consul
-```
-#### Hyper-V als DHCP & DNS
-Voor `servers = ["server:4647"]` en `retry_join = ["server"]` geef ik geen ip-adres in maar alleen de hostname van de server. Dit gaat werken omdat alle VM's binnen de Default Switch zitten van Hyper-V en elke VM een IP-adres krijgt van Hyper-V DHCP-server, ook zorgt Hyper-V voor name resolution met de DNS `mshome.net`.
-
-**Groot voordeel hiervan is dat we nergens IP's moeten definiëren in config-files en maakt alles een heel stuk overzichtelijker!** 
-
-Ping van client1 naar server.
-![pingclient1](https://i.imgur.com/Ak2RBpj.png)
-Ping van server naar client1.
-![pingserver](https://i.imgur.com/hGC817M.png)
-#### Update-script
-Dit script kijkt of updates nodig zijn en installeert ze vervolgens.
-```bash
-yum check-update > /dev/null
-
-UPDATES_COUNT=$(yum check-update --quiet | grep -v "^$" | wc -l)
-
-if [[ $UPDATES_COUNT -gt 0 ]]; then
-   echo "${UPDATES_COUNT} Updates available, installing"
-   yum -y upgrade
-else
-   echo "${UPDATES_COUNT} updates available"
-fi
 ```
 
-#### Install-script
-Onderstaand script installeert Nomad, Consul en Docker en start deze op als systemd-services.
-```bash
-# Install Nomad
-yum install -y yum-utils
-yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
-yum -y install nomad
-nomad --version
+### Server template
+```
+data_dir = "/etc/nomad.d/data"
 
-systemctl enable nomad
-systemctl start nomad
-
-# Install Consul
-yum -y install consul
-consul --version
-
-systemctl enable consul
-systemctl start consul
-
-# Install Docker
-yum install -y yum-utils
-yum-config-manager \
-	--add-repo \
-	https://download.docker.com/linux/centos/docker-ce.repo
-
-yum install -y docker-ce docker-ce-cli containerd.io
-
-systemctl enable docker
-systemctl start docker
+server {
+  enabled          = true
+  bootstrap_expect = 1
+}
 ```
 
 ### Uitvoeren van een job
@@ -247,3 +319,6 @@ https://www.vagrantup.com/docs/providers/hyperv/limitations
 https://learn.hashicorp.com/tutorials/nomad/get-started-install
 https://learn.hashicorp.com/tutorials/nomad/production-deployment-guide-vm-with-consul
 https://learn.hashicorp.com/tutorials/nomad/get-started-jobs
+https://docs.ansible.com/ansible/latest/user_guide/intro_inventory.html
+https://www.vagrantup.com/docs/provisioning/ansible_intro
+https://app.vagrantup.com/visibilityspots
