@@ -19,7 +19,19 @@
   yum: 
     name: consul
     state: present
-    
+
+- name: consul server conf
+  template:
+    src: server.hcl.j2
+    dest: /etc/consul.d/consul.hcl
+  when: is_server|bool
+
+- name: consul client conf
+  template:
+    src: client.hcl.j2
+    dest: /etc/consul.d/consul.hcl
+  when: not is_server|bool   
+
 - name: enable consul
   systemd:
     name: consul
