@@ -1,0 +1,1 @@
+rate(node_cpu_seconds_total{mode="user"}[30s]) * 100
