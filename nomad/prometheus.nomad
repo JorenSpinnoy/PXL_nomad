@@ -31,7 +31,7 @@ scrape_configs:
 
   - job_name: 'node_exporter_metrics'
     static_configs:
-      - targets: ["localhost:9900"]
+      - targets: ['192.168.159.132:9500']
 EOH
       }
 
