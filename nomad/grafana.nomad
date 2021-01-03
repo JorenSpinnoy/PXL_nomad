@@ -2,7 +2,6 @@ job "grafana" {
   datacenters = ["dc1"]
 
   group "grafana" {
-    count = 2
     network {
         port "gf" {
             static = 3000
