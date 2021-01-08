@@ -22,7 +22,7 @@ Aangezien de Fabio loadbalancer draait op alle nodes, kan men op alle nodes naar
 
 ## Nomad metrics
 
-De Nomad cluster kan zelf metrics exposen zodat deze gebruikt kunnen worden door monitoring software, in dit geval Prometheus. Standaard geeft Nomad deze gegevens niet vrij, we moeten dit expliciet aangeven in de `nomad.hcl` config file. Omdat we onze cluster opzetten gebruik makend van Ansible hebben we deze playbook licht aangepast. In de templates is onderstaande `telemetry`-code toegevoegd:
+De Nomad cluster kan zelf metrics exposen zodat deze gebruikt kunnen worden door monitoring software, in dit geval Prometheus. Standaard geeft Nomad deze gegevens niet vrij, we moeten dit expliciet aangeven in de `nomad.hcl` config file. Omdat we onze cluster opzetten gebruik makend van Ansible hebben we deze playbook licht aangepast. In de templates is onderstaande `telemetry`-stanza toegevoegd:
 ```j2
 telemetry {
   collection_interval = "5s"
