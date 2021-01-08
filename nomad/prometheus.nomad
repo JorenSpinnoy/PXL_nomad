@@ -17,6 +17,24 @@ job "prometheus" {
     task "prometheus" {
       template {
         change_mode = "noop"
+        destination = "local/webserver_alert.yml"
+        data = <<EOH
+---
+groups:
+- name: prometheus_alerts
+  rules:
+  - alert: Webserver down
+    expr: absent(up{job="webserver"})
+    for: 10s
+    labels:
+      severity: critical
+    annotations:
+      description: "Our webserver is down."
+EOH
+      }
+
+      template {
+        change_mode = "noop"
         destination = "local/prometheus.yml"
         data = <<EOH
 ---
