@@ -14,7 +14,11 @@ In deze opdracht maken we gebruik van de eerder aangemaakte Nomad-cluster waar w
 
 `:9090` = Prometheus
 
-`:9100` = node_exporter metrics endpoint 
+## Fabio loadbalancer
+
+Aangezien de Fabio loadbalancer draait op alle nodes, kan men op alle nodes naar de services surfen. De routing table van Fabio serveert dan de correcte pagina van de gebruikte node. Je bereikt deze routing table door te surfen naar `<client>:9998`. De endpoint van deze LB ligt op poort `9999`, dus bijvoorbeeld surfen naar `<client>:9999/webserver/metrics` brengt je meteen naar de metrics van de webserver.
+
+![Fabio routing table](https://i.imgur.com/6PcqIAj.png)
 
 ## Nomad metrics
 

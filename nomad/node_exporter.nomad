@@ -2,7 +2,6 @@ job "node_exporter" {
   datacenters = ["dc1"]
 
   group "node_exporter" {
-    count = 2
     network {
         port "n_x" {
             static = 9500
