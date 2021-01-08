@@ -4,3 +4,11 @@ client {
   enabled = true
   servers = ["server:4647"]
 }
+
+telemetry {
+  collection_interval = "5s"
+  disable_hostname = true
+  prometheus_metrics = true
+  publish_allocation_metrics = true
+  publish_node_metrics = true
+}
