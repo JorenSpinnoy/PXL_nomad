@@ -1,17 +1,15 @@
 job "prometheus" {
   datacenters = ["dc1"]
-  type        = "service"
+  type = "service"
 
   group "monitoring" {
     count = 1
-
     restart {
       attempts = 2
       interval = "30m"
-      delay    = "15s"
-      mode     = "fail"
+      delay = "15s"
+      mode = "fail"
     }
-
     ephemeral_disk {
       size = 300
     }
@@ -20,47 +18,75 @@ job "prometheus" {
       template {
         change_mode = "noop"
         destination = "local/prometheus.yml"
-
         data = <<EOH
 ---
 global:
-  scrape_interval:     15s
-  evaluation_interval: 15s
+  scrape_interval:     5s
+  evaluation_interval: 5s
+
+alerting:
+  alertmanagers:
+  - consul_sd_configs:
+    - server: '{{ env "NOMAD_IP_prometheus_ui" }}:8500'
+      services: ['alertmanager']
+
+rule_files:
+  - "webserver_alert.yml"
 
 scrape_configs:
 
-  - job_name: 'node_exporter_metrics'
-    static_configs:
-      - targets: ['192.168.159.132:9500']
+  - job_name: 'alertmanager'
+
+    consul_sd_configs:
+    - server: '{{ env "NOMAD_IP_prometheus_ui" }}:8500'
+      services: ['alertmanager']
+
+  - job_name: 'nomad_metrics'
+
+    consul_sd_configs:
+    - server: '{{ env "NOMAD_IP_prometheus_ui" }}:8500'
+      services: ['nomad-client', 'nomad']
+
+    relabel_configs:
+    - source_labels: ['__meta_consul_tags']
+      regex: '(.*)http(.*)'
+      action: keep
+
+    scrape_interval: 5s
+    metrics_path: /v1/metrics
+    params:
+      format: ['prometheus']
+
+  - job_name: 'webserver'
+
+    consul_sd_configs:
+    - server: '{{ env "NOMAD_IP_prometheus_ui" }}:8500'
+      services: ['webserver']
+
+    metrics_path: /metrics
 EOH
       }
-
       driver = "docker"
-
       config {
         image = "prom/prometheus:latest"
-
         volumes = [
-          "local/prometheus.yml:/etc/prometheus/prometheus.yml",
+          "local/webserver_alert.yml:/etc/prometheus/webserver_alert.yml",
+          "local/prometheus.yml:/etc/prometheus/prometheus.yml"
         ]
-
         port_map {
           prometheus_ui = 9090
         }
       }
-
       resources {
         network {
           mbits = 10
-          port  "prometheus_ui"{}
+          port "prometheus_ui" {}
         }
       }
-
       service {
         name = "prometheus"
         tags = ["urlprefix-/"]
         port = "prometheus_ui"
-
         check {
           name     = "prometheus_ui port alive"
           type     = "http"
