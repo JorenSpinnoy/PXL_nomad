@@ -39,6 +39,7 @@ De gebruikte .nomad jobs zijn terug te vinden in de map [nomad/](https://github.
 
 * fabio
 * prometheus
+* grafana
 * alertmanager
 * webserver
 
