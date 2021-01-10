@@ -16,7 +16,7 @@ In deze opdracht maken we gebruik van de eerder aangemaakte Nomad-cluster waar w
 
 ## Fabio loadbalancer
 
-Aangezien de Fabio loadbalancer draait op alle nodes, kan men op alle nodes naar de services surfen. De routing table van Fabio serveert dan de correcte pagina van de gebruikte node. Je bereikt deze routing table door te surfen naar `<client>:9998`. De endpoint van deze LB ligt op poort `9999`, dus bijvoorbeeld surfen naar `<client>:9999/webserver/metrics` brengt je meteen naar de metrics van de webserver.
+Aangezien de Fabio loadbalancer draait op alle nodes, kan men op alle nodes naar de services surfen. De routing table van Fabio serveert dan de correcte pagina van de gebruikte node. Je bereikt deze routing table door te surfen naar `<client>:9998`. De endpoint van deze LB ligt op poort `9999`, dus bijvoorbeeld surfen naar `<client_ip>:9999/webserver/metrics` brengt je meteen naar de metrics van de webserver.
 
 ![Fabio routing table](https://i.imgur.com/6PcqIAj.png)
 
@@ -56,4 +56,6 @@ sum(nomad_nomad_job_summary_running)
 ```
 
 ## Grafana dashboard
+Voor we dashboards importeren naar Grafana moeten we onze Prometheus instantie als datasource toevoegen. Klik in de navigatiebalk op 'explore' > `add data source` en selecteer Prometheus. Als locatie geef je de enpoint van de loadbalancer mee `<client_ip>:9999` en klik je onderaan op 'test datasource'. 
+
 Het .json-template voor ons Grafana dashboard is terug te vinden in de map [grafana/](https://github.com/JorenSpinnoy/PXL_nomad/tree/team1-pe3/grafana). Deze template kan je importeren in Grafana door op het + icoontje in het side menu te drukken. Hier kan je de .json-file uploaden of gewoon de inhoud in het json panel plakken.
